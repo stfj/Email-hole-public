@@ -392,7 +392,8 @@ def followAIRule(rule, resp, inbox, num, config):
                     if(a[1] == "read"):
                         inbox.store(num, '+FLAGS', '\\Seen')
                 if(a[0] == "fwd"):
-                    fwd_email(inbox, num, 'zach@gage.nyc', a[1], config)
+                    IMAP_SERVER, SMTP_SERVER, EMAIL_ACCOUNT, PASSWORD = config
+                    fwd_email(inbox, num, EMAIL_ACCOUNT, a[1], config)
                     
             
             return reaction[0].startswith('no') == False
