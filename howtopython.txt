@@ -1,0 +1,38 @@
+Installing Python --------------------
+brew update
+brew install python
+brew info python
+
+Look for the Caveats:
+==> Caveats
+Python has been installed as
+  /usr/local/bin/python3
+
+Unversioned symlinks `python`, `python-config`, `pip` etc. pointing to
+`python3`, `python3-config`, `pip3` etc., respectively, have been installed into
+  [/usr/local/opt/python/libexec/bin]
+
+run:
+export PATH=[PATH FROM ABOVE]:$PATH
+
+put it in: 
+pico ~/.zshrc
+
+Running normally ---------------------
+
+pip install pipenv --break-system-packages
+cd /path/to/your/project
+
+pipenv install
+pipenv shell
+python thehole.py
+
+exit
+
+Cron job running ---------------------
+chmod +x runTheHole.sh
+crontab -e
+*/5 * * * * /Users/USER/Email-Hole/run_script.sh > /Users/USER/Email-Hole/logfile.log 2>&1
+(run the script every 5 minutes and logfile somewhere)
+
+to get out of vi and save: Type :wq and press Enter
