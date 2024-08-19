@@ -1,5 +1,4 @@
 import imaplib
-import smtplib
 import sqlite3
 import configparser
 import yaml

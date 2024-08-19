@@ -1,5 +1,6 @@
 import email
 import sqlite3
+import smtplib
 from email.utils import parseaddr
 from email.header import decode_header
 import csv
@@ -15,6 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import time
+import json
 
 model = GPT4All(model_name="Meta-Llama-3.1-8B-Instruct-128k-Q4_0.gguf")  # Update with the correct model name
 
@@ -58,7 +60,7 @@ def moveToVoid(inbox):
 
 def organizeEmails(inbox, allowlist, AIRules, config):
 
-    inbox.select('AI/to-process')
+    inbox.select('to-process')
     
     # Search for all emails in the specified folder
     status, email_ids = inbox.search(None, 'ALL')
@@ -346,7 +348,7 @@ def trim_string(input_string):
     tokens = tokenizer.encode(input_string)
 
     # Cut off at 1800 tokens
-    tokens = tokens[:1800]
+    tokens = tokens[:1300]
 
     # Convert tokens back to string
     trimmed_string = tokenizer.decode(tokens)
@@ -360,8 +362,9 @@ def getAIResponse(rule, subj, body, retries=3, delay=5):
 
     for attempt in range(retries):
         try:
-            with model.chat_session(system_prompt="<|start_header_id|>system<|end_header_id|>\nCutting Knowledge Date: December 2023\nYou are a helpful assistant.<|eot_id|>"):
-                response = model.generate(prompt, max_tokens=40, temp = 1)
+            with model.chat_session(system_prompt="<|start_header_id|>system<|end_header_id|>\nCutting Knowledge Date: December 2023\nYou are a high-level personal assistant whose job it is to sort through email and put the right emails in the right boxes. You are very good at your job. Everyone is impressed. Your first step in responding to any query is to explain your thought process for the task before you and deliverate the correct key word response. The second step is to output the asked for key word. You output your responses in json format with an element for each step.<|eot_id|>"):
+                response = model.generate(prompt, max_tokens=400, temp = 1)
+
             return response
 
         except (TimeoutError, ConnectionError) as e:
@@ -379,9 +382,24 @@ def followAIRule(rule, resp, inbox, num, config):
 
     #print("*********\n"+resp+"\n************")
 
+    actual_resp = ""
+
+    try:
+        jsn = json.loads(resp)
+        actual_resp = list(jsn.values())[1]
+        print(list(jsn.values())[0])
+    except (json.JSONDecodeError, IndexError, TypeError) as e:
+        actual_resp = ""
+
     for reaction in reactions:
-        if(reaction[0] in resp):
+
+        if(actual_resp == ""):
+            if(reaction[0] in resp): 
+                resp = reaction[0]
+        
+        if(actual_resp == reaction[0]):
             print(reaction[0])
+            
             
             for action in reaction[1]:
                 a = action.split(":")
