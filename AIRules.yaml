@@ -1,18 +1,24 @@
 rules:
-  - name: Shipping notifications
-    prompt: "Is this email a shipping notification? Please only answer yes1589128312 or no1589127821."
-    reactions:
-      - ["yes1589128312", ["move:AI/AI-Shipping"]]
-      - ["no1589127821", ["", ""]]
+  - name: people trying to get me to sign up for their services
+    code: 1
+    action: ["move:AI/Spam", "mark:read"]
+  
+  - name: email meant for my mom
+    code: 2
+    action: ["fwd:mom@email.com", "move:AI/mom"]
 
-  - name: Receipts
-    prompt: "Is this email a receipt for a purchase? Please only answer yes19716 or no1757812."
-    reactions:
-      - ["yes19716", ["move:AI/AI-Receipts", "mark:read"]]
-      - ["no1757812", ["", ""]]
+  - name: people who are trying to send me money
+    code: 3
+    action: ["move:INBOX"]
+    
+  - name: shipping notifications
+    code: 4
+    action: ["move:AI/Shipping"]
 
-  - name: Mobile spam
-    prompt: "Is this a personal email from someone promoting an advertising product?  If it is an automated marketing email please say no15789127. Only say yes756971 at this stage if it is written from a person to me personally. Please only answer yes756971 or no15789127."
-    reactions:
-      - ["yes756971", ["move:AI/AI-MobileSpam", "mark:read"]]
-      - ["no15789127", ["", ""]]
+  - name: receipts
+    code: 5
+    action: ["move:AI/Receipts", "mark:read"]
+
+  - name: publicists trying to get me to write or talk about cryptocurrency
+    code: 6
+    action: ["move:AI/PRSpam", "mark:read"]

@@ -16,7 +16,6 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import time
-import json
 
 model = GPT4All(model_name="Meta-Llama-3.1-8B-Instruct-128k-Q4_0.gguf")  # Update with the correct model name
 
@@ -93,20 +92,13 @@ def organizeEmails(inbox, allowlist, AIRules, config):
 
         print("------")
         print("AI Check email: "+subject)
+        sortCode = getEmailSortCode(subject, body, AIRules)
 
-        for rule in AIRules:
-            response = getAIResponse(rule, subject, body)
-
-            if(response != ""):
-                if(followAIRule(rule, response, inbox, num, config)): break #if the response is an action, stop trying to follow more AI rules
-    
-
-    ################### move all remaining emails from 'Processing' to 'The hole'
-    for num in emailInts[::-1]:
-        print("-> HOLE")
-
-        if(moveEmail(inbox, num, 'The-Hole')):
-            emailInts.remove(num)  # Remove the email from the list
+        if(sortCode == 99):
+            print("-> HOLE")
+            moveEmail(inbox, num, 'The-Hole')
+        else:
+            sortEmail(inbox, num, sortCode, AIRules, config)
 
     ################### execute all deletions on the server
     inbox.expunge()
@@ -348,24 +340,35 @@ def trim_string(input_string):
     tokens = tokenizer.encode(input_string)
 
     # Cut off at 1800 tokens
-    tokens = tokens[:1300]
+    tokens = tokens[:800]
 
     # Convert tokens back to string
     trimmed_string = tokenizer.decode(tokens)
 
     return trimmed_string
 
-def getAIResponse(rule, subj, body, retries=3, delay=5):
-    print("--->Check rule: " + rule['name'])
 
-    prompt = rule['prompt'] + "\nSubject:" + subj + "\nBody:\n" + trim_string(body.replace('\n', ''))
-
+def getEmailSortCode(subj, body, rules, retries=3, delay=5):
     for attempt in range(retries):
         try:
-            with model.chat_session(system_prompt="<|start_header_id|>system<|end_header_id|>\nCutting Knowledge Date: December 2023\nYou are a high-level personal assistant whose job it is to sort through email and put the right emails in the right boxes. You are very good at your job. Everyone is impressed. Your first step in responding to any query is to explain your thought process for the task before you and deliverate the correct key word response. The second step is to output the asked for key word. You output your responses in json format with an element for each step.<|eot_id|>"):
-                response = model.generate(prompt, max_tokens=400, temp = 1)
+            emailSummaryPrompt = "how would you summarize this email in 2 sentences?" + "\nSubject:" + subj + "\nBody:\n" + trim_string(body.replace('\n', ''))
+            sortPrompt = "which box would you say is most appropriate for this email?"
 
-            return response
+            for rule in rules:
+                sortPrompt += "\n- (" + str(rule['code'])+") " + rule['name']
+            
+            sortPrompt += "\n- (99) none of the above\n\nplease answer with a number enclosed in these text delimiters <NUMBER>"
+
+            with model.chat_session(system_prompt="<|start_header_id|>system<|end_header_id|>\nCutting Knowledge Date: December 2023\nYou are a high-level personal assistant whose job it is to sort through email and put the right emails in the right boxes. You are very good at your job. Everyone is impressed. Always explain your reasoning in detail before completing the task set out for you.<|eot_id|>"):
+                model.generate(emailSummaryPrompt, max_tokens=2000, temp = 1)
+                response = model.generate(sortPrompt, max_tokens=2000, temp = 1)
+
+            match = re.search(r'<(\d+)>', response)
+            if match:
+                number = match.group(1)
+                return int(number)
+            else:
+                return 99
 
         except (TimeoutError, ConnectionError) as e:
             print(f"Error: {e}. Retrying {attempt + 1}/{retries}...")
@@ -377,31 +380,13 @@ def getAIResponse(rule, subj, body, retries=3, delay=5):
 
     return ""
 
-def followAIRule(rule, resp, inbox, num, config):
-    reactions = rule['reactions']
+def sortEmail(inbox, num, sortCode, rules, config):
 
-    #print("*********\n"+resp+"\n************")
+    print(sortCode)
 
-    actual_resp = ""
-
-    try:
-        jsn = json.loads(resp)
-        actual_resp = list(jsn.values())[1]
-        print(list(jsn.values())[0])
-    except (json.JSONDecodeError, IndexError, TypeError) as e:
-        actual_resp = ""
-
-    for reaction in reactions:
-
-        if(actual_resp == ""):
-            if(reaction[0] in resp): 
-                resp = reaction[0]
-        
-        if(actual_resp == reaction[0]):
-            print(reaction[0])
-            
-            
-            for action in reaction[1]:
+    for rule in rules:
+        if(rule['code'] == sortCode):
+            for action in rule['action']:
                 a = action.split(":")
                 if(a[0] == "move"):
                     print("move ->"+a[1])
@@ -409,14 +394,11 @@ def followAIRule(rule, resp, inbox, num, config):
                 if(a[0] == "mark"):
                     if(a[1] == "read"):
                         inbox.store(num, '+FLAGS', '\\Seen')
+                        inbox.expunge()
                 if(a[0] == "fwd"):
                     IMAP_SERVER, SMTP_SERVER, EMAIL_ACCOUNT, PASSWORD = config
                     fwd_email(inbox, num, EMAIL_ACCOUNT, a[1], config)
-                    
-            
-            return reaction[0].startswith('no') == False
-            
-    return False
+            return
 
 def decode_header_value(value):
     if isinstance(value, email.header.Header):
